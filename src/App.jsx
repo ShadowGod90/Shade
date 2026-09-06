@@ -10,6 +10,8 @@ import { Geolocation } from "@capacitor/geolocation";
 import { Share } from "@capacitor/share";
 import { Contacts } from "@capacitor-community/contacts";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "./firebaseConfig";
 
 const AUTH_STORAGE_KEY = "shade_auth_phone";
 const PROFILE_STORAGE_KEY = "shade_profile";
@@ -518,9 +520,4 @@ export default function ShadeApp() {
     if (!file || !activeId) return;
     try {
       const dataUrl = await resizeImageFile(file, 700, 0.75);
-      persistWallpapers({ ...wallpapers, [activeId]: dataUrl });
-    } catch {}
-    e.target.value = "";
-    setShowChatMenu(false);
-                                 }
-      
+      persistWallpapers({ ...wa
