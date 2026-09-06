@@ -1,48 +1,30 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Search, Send, Paperclip, Smile, MoreVertical, ArrowRight, Check, CheckCheck, Phone, ShieldCheck } from "lucide-react";
+import {
+  Search, Send, Paperclip, Smile, MoreVertical, ArrowRight, Check, CheckCheck,
+  Phone, ShieldCheck, Plus, Users, Radio, Camera, MapPin, File as FileIcon,
+  Video, Mic, MicOff, Volume2, VolumeX, PhoneOff, Edit3, LogOut, UserPlus,
+  MessageCircle, X, Forward, Pin, Flag, Ban, Palette, HardDrive, Compass, Trash2,
+} from "lucide-react";
 import { Preferences } from "@capacitor/preferences";
+import { Geolocation } from "@capacitor/geolocation";
+import { Share } from "@capacitor/share";
+import { Contacts } from "@capacitor-community/contacts";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 
 const AUTH_STORAGE_KEY = "shade_auth_phone";
+const PROFILE_STORAGE_KEY = "shade_profile";
+const THEME_STORAGE_KEY = "shade_theme";
+const WALLPAPER_STORAGE_KEY = "shade_wallpapers";
 
-const CONTACTS = [
-  { id: 1, name: "سارا احمدی", initials: "سا", online: true, color: "#7C6FE0" },
-  { id: 2, name: "گروه طراحی", initials: "گط", online: false, color: "#4FA3A0", group: true },
-  { id: 3, name: "علی رضایی", initials: "عر", online: true, color: "#C77D5A" },
-  { id: 4, name: "مریم کریمی", initials: "مک", online: false, color: "#B0578D" },
-  { id: 5, name: "پویا مرادی", initials: "پم", online: false, color: "#5B8DBE" },
-];
+const AVATAR_COLORS = ["#7C6FE0", "#4FA3A0", "#C77D5A", "#B0578D", "#5B8DBE", "#5DCAA5", "#D08C3E", "#6C7CE0"];
+const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
-const INITIAL_MESSAGES = {
-  1: [
-    { id: 1, from: "them", text: "سلام! فایل‌های جدید رو دیدی؟", time: "10:12" },
-    { id: 2, from: "me", text: "سلام، آره الان دارم نگاه می‌کنم", time: "10:14", status: "read" },
-    { id: 3, from: "them", text: "نظرت چیه؟ فکر می‌کنم رنگ‌بندی خوب شده", time: "10:15" },
-  ],
-  2: [
-    { id: 1, from: "them", text: "جلسه فردا ساعت ۱۰ هست", time: "09:02" },
-    { id: 2, from: "me", text: "باشه، یادداشت کردم", time: "09:05", status: "read" },
-  ],
-  3: [
-    { id: 1, from: "them", text: "کد رو پوش کردم، می‌تونی ریویو کنی؟", time: "یدیروز" },
-  ],
-  4: [
-    { id: 1, from: "me", text: "ممنون بابت کمکت", time: "دوشنبه", status: "delivered" },
-  ],
-  5: [
-    { id: 1, from: "them", text: "عکس‌های سفر رو برات می‌فرستم", time: "شنبه" },
-  ],
+const THEMES = {
+  dark: { bg: "#0B0D12", panel: "#12151C", panel2: "#151821", border: "#1E212B", border2: "#2A2E3A", text: "#E7E8EC", textDim: "#8B8D98", textFaint: "#5F6270", bubbleThem: "#1B1E28" },
+  gray: { bg: "#2A2D34", panel: "#33363E", panel2: "#3A3D46", border: "#454852", border2: "#565A66", text: "#F0F0F2", textDim: "#B7B9C2", textFaint: "#8C8F99", bubbleThem: "#3A3D46" },
+  light: { bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F0F1F4", border: "#E4E6EB", border2: "#D5D8DE", text: "#1A1B1F", textDim: "#6B6E76", textFaint: "#9497A0", bubbleThem: "#FFFFFF" },
 };
-
-const LAST_PREVIEW = {
-  1: "نظرت چیه؟ فکر می‌کنم رنگ‌بندی...",
-  2: "باشه، یادداشت کردم",
-  3: "کد رو پوش کردم، می‌تونی ریویو...",
-  4: "ممنون بابت کمکت",
-  5: "عکس‌های سفر رو برات می‌فرستم",
-};
-
-const LAST_TIME = { 1: "10:15", 2: "09:05", 3: "دیروز", 4: "دوشنبه", 5: "شنبه" };
-const UNREAD = { 1: 0, 2: 2, 3: 1, 4: 0, 5: 0 };
+const THEME_LABELS = { dark: "مشکی", gray: "خاکستری", light: "سفید" };
 
 const AUTO_REPLIES = [
   "باشه، متوجه شدم",
@@ -51,6 +33,60 @@ const AUTO_REPLIES = [
   "حتما، بهت خبر می‌دم",
   "درسته، موافقم",
 ];
+
+function initialsOf(name) {
+  const clean = (name || "؟").trim();
+  const parts = clean.split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] || "") + (parts[1][0] || "");
+  return clean.slice(0, 2);
+}
+
+function colorFromString(str) {
+  let hash = 0;
+  const s = str || "x";
+  for (let i = 0; i < s.length; i++) hash = s.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function nowTime() {
+  return new Date().toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return "۰ بایت";
+  const units = ["بایت", "KB", "MB", "GB"];
+  let i = 0;
+  let v = bytes;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+}
+
+function resizeImageFile(file, maxSize = 320, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxSize) { height = Math.round((height * maxSize) / width); width = maxSize; }
+        } else {
+          if (height > maxSize) { width = Math.round((width * maxSize) / height); height = maxSize; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 function Avatar({ name, initials, color, size = 44 }) {
   return (
@@ -64,35 +100,105 @@ function Avatar({ name, initials, color, size = 44 }) {
 }
 
 export default function ShadeApp() {
-  const [authStep, setAuthStep] = useState("checking"); // checking | phone | otp | app
+  // ---- auth flow ----
+  const [authStep, setAuthStep] = useState("checking"); // checking | phone | otp | profile | app
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
-  const [sentCode, setSentCode] = useState("");
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", ""]);
   const [otpError, setOtpError] = useState("");
   const [resendTimer, setResendTimer] = useState(0);
   const otpRefs = useRef([]);
+  const verificationIdRef = useRef(null);
 
-  const [activeId, setActiveId] = useState(1);
-  const [messagesByChat, setMessagesByChat] = useState(INITIAL_MESSAGES);
-  const [previews, setPreviews] = useState(LAST_PREVIEW);
-  const [times, setTimes] = useState(LAST_TIME);
-  const [unread, setUnread] = useState(UNREAD);
+  // ---- profile ----
+  const [profile, setProfile] = useState({ username: "", bio: "", avatar: "" });
+  const [draftProfile, setDraftProfile] = useState({ username: "", bio: "", avatar: "" });
+  const [profileError, setProfileError] = useState("");
+  const [editDraft, setEditDraft] = useState({ username: "", bio: "", avatar: "" });
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [showAccountSheet, setShowAccountSheet] = useState(false);
+  const setupAvatarInputRef = useRef(null);
+  const avatarEditInputRef = useRef(null);
+
+  // ---- settings sub-screens ----
+  const [showAppearance, setShowAppearance] = useState(false);
+  const [showStorage, setShowStorage] = useState(false);
+  const [showChannelExplore, setShowChannelExplore] = useState(false);
+  const [exploreQuery, setExploreQuery] = useState("");
+  const [theme, setTheme] = useState("dark");
+
+  // ---- chats ----
+  const [chats, setChats] = useState({});
+  const [messagesByChat, setMessagesByChat] = useState({});
+  const [activeId, setActiveId] = useState(null);
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [mobileView, setMobileView] = useState("list"); // list | chat
+  const [wallpapers, setWallpapers] = useState({});
   const scrollRef = useRef(null);
+  const wallpaperInputRef = useRef(null);
 
-  const active = CONTACTS.find((c) => c.id === activeId);
-  const messages = messagesByChat[activeId] || [];
+  // ---- new chat / group / channel ----
+  const [showNewMenu, setShowNewMenu] = useState(false);
+  const [showContactsScreen, setShowContactsScreen] = useState(false);
+  const [deviceContacts, setDeviceContacts] = useState([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [contactsErr, setContactsErr] = useState("");
+  const [creatingType, setCreatingType] = useState(null); // null | 'group' | 'channel'
+  const [newChatName, setNewChatName] = useState("");
+  const [selectedMembers, setSelectedMembers] = useState([]);
+  const [newChatDiscoverable, setNewChatDiscoverable] = useState(true);
 
+  // ---- attachments ----
+  const [showAttachSheet, setShowAttachSheet] = useState(false);
+  const mediaInputRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // ---- message actions ----
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [showForwardScreen, setShowForwardScreen] = useState(null);
+  const [showChatMenu, setShowChatMenu] = useState(false);
+  const touchState = useRef({ x: 0, moved: false, timer: null });
+
+  // ---- calls ----
+  const [activeCall, setActiveCall] = useState(null); // { chat, type: 'voice'|'video' }
+  const [callConnected, setCallConnected] = useState(false);
+  const [callSeconds, setCallSeconds] = useState(0);
+  const [micMuted, setMicMuted] = useState(false);
+  const [speakerOn, setSpeakerOn] = useState(false);
+
+  const active = activeId ? chats[activeId] : null;
+  const messages = activeId ? messagesByChat[activeId] || [] : [];
+  const chatList = Object.values(chats).filter((c) => c.name.includes(query.trim()));
+  const t = THEMES[theme] || THEMES.dark;
+  const themeVars = {
+    "--bg": t.bg, "--panel": t.panel, "--panel2": t.panel2, "--border": t.border, "--border2": t.border2,
+    "--text": t.text, "--textDim": t.textDim, "--textFaint": t.textFaint, "--bubbleThem": t.bubbleThem,
+  };
+  const activeWallpaper = activeId ? (wallpapers[activeId] || wallpapers.default) : null;
+
+  // ---- restore session ----
   useEffect(() => {
     (async () => {
       try {
-        const stored = await Preferences.get({ key: AUTH_STORAGE_KEY });
-        if (stored.value) {
-          setPhone(stored.value);
+        const storedPhone = await Preferences.get({ key: AUTH_STORAGE_KEY });
+        const storedProfile = await Preferences.get({ key: PROFILE_STORAGE_KEY });
+        const storedTheme = await Preferences.get({ key: THEME_STORAGE_KEY });
+        const storedWallpapers = await Preferences.get({ key: WALLPAPER_STORAGE_KEY });
+        if (storedTheme.value) setTheme(storedTheme.value);
+        if (storedWallpapers.value) {
+          try { setWallpapers(JSON.parse(storedWallpapers.value)); } catch {}
+        }
+        if (storedPhone.value && storedProfile.value) {
+          setPhone(storedPhone.value);
+          setProfile(JSON.parse(storedProfile.value));
           setAuthStep("app");
+        } else if (storedPhone.value) {
+          setPhone(storedPhone.value);
+          setAuthStep("profile");
         } else {
           setAuthStep("phone");
         }
@@ -102,60 +208,251 @@ export default function ShadeApp() {
     })();
   }, []);
 
+  // ---- firebase phone-auth listeners ----
+  useEffect(() => {
+    const sentHandle = FirebaseAuthentication.addListener("phoneCodeSent", (event) => {
+      verificationIdRef.current = event.verificationId;
+      setOtp(["", "", "", "", ""]);
+      setOtpError("");
+      setPhoneError("");
+      setResendTimer(45);
+      setAuthStep("otp");
+    });
+    const failedHandle = FirebaseAuthentication.addListener("phoneVerificationFailed", (event) => {
+      setPhoneError((event && event.message) || "ارسال کد ناموفق بود، دوباره تلاش کن");
+    });
+    const completedHandle = FirebaseAuthentication.addListener("phoneVerificationCompleted", () => {
+      // Android auto-detected the SMS and verified automatically, no code entry needed
+      Preferences.set({ key: AUTH_STORAGE_KEY, value: phone });
+      setDraftProfile({ username: "", bio: "", avatar: "" });
+      setAuthStep("profile");
+    });
+    return () => {
+      sentHandle.then((h) => h.remove());
+      failedHandle.then((h) => h.remove());
+      completedHandle.then((h) => h.remove());
+    };
+  }, [phone]);
+
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, activeId]);
 
   useEffect(() => {
     if (resendTimer <= 0) return;
-    const t = setInterval(() => setResendTimer((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(t);
+    const t2 = setInterval(() => setResendTimer((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t2);
   }, [resendTimer]);
 
-  const filtered = CONTACTS.filter((c) => c.name.includes(query.trim()));
+  // ---- load device contacts when needed ----
+  useEffect(() => {
+    if (!showContactsScreen && !creatingType) return;
+    (async () => {
+      setContactsLoading(true);
+      setContactsErr("");
+      try {
+        const perm = await Contacts.requestPermissions();
+        if (perm.contacts !== "granted") {
+          setContactsErr("اجازه‌ی دسترسی به مخاطبین داده نشد.");
+          setContactsLoading(false);
+          return;
+        }
+        const result = await Contacts.getContacts({ projection: { name: true, phones: true } });
+        const list = (result.contacts || [])
+          .filter((c) => c.name && c.name.display)
+          .map((c) => ({
+            id: c.contactId,
+            name: c.name.display,
+            phone: (c.phones && c.phones[0] && c.phones[0].number) || "",
+          }));
+        setDeviceContacts(list);
+      } catch (err) {
+        setContactsErr("دسترسی به مخاطبین ممکن نشد (فقط روی گوشی واقعی کار می‌کند).");
+      }
+      setContactsLoading(false);
+    })();
+  }, [showContactsScreen, creatingType]);
+
+  // ---- call timers ----
+  useEffect(() => {
+    if (!activeCall) return;
+    setCallConnected(false);
+    setCallSeconds(0);
+    const tt = setTimeout(() => setCallConnected(true), 1800);
+    return () => clearTimeout(tt);
+  }, [activeCall]);
+
+  useEffect(() => {
+    if (!activeCall || !callConnected) return;
+    const tt = setInterval(() => setCallSeconds((s) => s + 1), 1000);
+    return () => clearInterval(tt);
+  }, [activeCall, callConnected]);
+
+  function formatCallTime(sec) {
+    const m = String(Math.floor(sec / 60)).padStart(2, "0");
+    const s = String(sec % 60).padStart(2, "0");
+    return `${m}:${s}`;
+  }
+
+  function persistWallpapers(next) {
+    setWallpapers(next);
+    Preferences.set({ key: WALLPAPER_STORAGE_KEY, value: JSON.stringify(next) });
+  }
+
+  function changeTheme(next) {
+    setTheme(next);
+    Preferences.set({ key: THEME_STORAGE_KEY, value: next });
+  }
 
   function openChat(id) {
     setActiveId(id);
-    setUnread((u) => ({ ...u, [id]: 0 }));
+    setChats((prev) => ({ ...prev, [id]: { ...prev[id], unread: 0 } }));
     setMobileView("chat");
+    setReplyingTo(null);
+    setShowChatMenu(false);
   }
 
-  function sendMessage() {
+  function pushMessage(chatId, partial) {
+    const time = nowTime();
+    const msg = { id: Date.now() + Math.random(), from: "me", time, status: "sent", ...partial };
+    setMessagesByChat((prev) => ({ ...prev, [chatId]: [...(prev[chatId] || []), msg] }));
+    const preview =
+      msg.type === "image" ? "📷 عکس" :
+      msg.type === "video" ? "🎥 ویدیو" :
+      msg.type === "file" ? `📎 ${msg.fileName}` :
+      msg.type === "location" ? "📍 موقعیت مکانی" : msg.text;
+    setChats((prev) => ({ ...prev, [chatId]: { ...prev[chatId], lastMessage: preview, lastTime: time } }));
+
+    const chat = chats[chatId];
+    if (chat && !chat.isGroup && !chat.isChannel && !chat.blocked) {
+      setTimeout(() => {
+        const reply = AUTO_REPLIES[Math.floor(Math.random() * AUTO_REPLIES.length)];
+        const replyTime = nowTime();
+        setMessagesByChat((prev) => ({
+          ...prev,
+          [chatId]: [...(prev[chatId] || []), { id: Date.now() + Math.random(), from: "them", type: "text", text: reply, time: replyTime }],
+        }));
+        setChats((prev) => ({ ...prev, [chatId]: { ...prev[chatId], lastMessage: reply, lastTime: replyTime } }));
+      }, 1400 + Math.random() * 900);
+    }
+  }
+
+  function buildReplySnippet() {
+    if (!replyingTo) return null;
+    const label =
+      replyingTo.type === "text" ? replyingTo.text :
+      replyingTo.type === "image" ? "📷 عکس" :
+      replyingTo.type === "video" ? "🎥 ویدیو" :
+      replyingTo.type === "file" ? `📎 ${replyingTo.fileName}` : "📍 موقعیت مکانی";
+    return { text: label, from: replyingTo.from };
+  }
+
+  function sendTextMessage() {
     const text = input.trim();
-    if (!text) return;
-    const now = new Date();
-    const time = now.toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" });
-    const newMsg = { id: Date.now(), from: "me", text, time, status: "sent" };
-    setMessagesByChat((prev) => ({ ...prev, [activeId]: [...(prev[activeId] || []), newMsg] }));
-    setPreviews((p) => ({ ...p, [activeId]: text }));
-    setTimes((t) => ({ ...t, [activeId]: time }));
+    if (!text || !activeId || active?.blocked) return;
+    pushMessage(activeId, { type: "text", text, replyTo: buildReplySnippet() });
     setInput("");
-
-    setTimeout(() => {
-      const reply = AUTO_REPLIES[Math.floor(Math.random() * AUTO_REPLIES.length)];
-      const replyTime = new Date().toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" });
-      setMessagesByChat((prev) => ({
-        ...prev,
-        [activeId]: [...(prev[activeId] || []), { id: Date.now() + 1, from: "them", text: reply, time: replyTime }],
-      }));
-      setPreviews((p) => ({ ...p, [activeId]: reply }));
-      setTimes((t) => ({ ...t, [activeId]: replyTime }));
-    }, 1400 + Math.random() * 900);
+    setReplyingTo(null);
   }
 
-  function handleSendCode() {
+  function handleAttachmentFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file || !activeId || active?.blocked) return;
+    const url = URL.createObjectURL(file);
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+    const type = isImage ? "image" : isVideo ? "video" : "file";
+    pushMessage(activeId, { type, mediaUrl: url, fileName: file.name, fileSize: file.size, replyTo: buildReplySnippet() });
+    e.target.value = "";
+    setShowAttachSheet(false);
+    setReplyingTo(null);
+  }
+
+  async function handleShareLocation() {
+    setShowAttachSheet(false);
+    if (!activeId || active?.blocked) return;
+    try {
+      const pos = await Geolocation.getCurrentPosition();
+      pushMessage(activeId, { type: "location", lat: pos.coords.latitude, lng: pos.coords.longitude, replyTo: buildReplySnippet() });
+      setReplyingTo(null);
+    } catch {
+      window.alert("دسترسی به موقعیت مکانی ممکن نشد.");
+    }
+  }
+
+  function startChatWithContact(contact) {
+    const id = `c-${contact.phone || contact.name}`;
+    setChats((prev) => {
+      if (prev[id]) return prev;
+      return {
+        ...prev,
+        [id]: {
+          id, name: contact.name, initials: initialsOf(contact.name), color: colorFromString(contact.name),
+          online: Math.random() > 0.5, isGroup: false, isChannel: false, blocked: false,
+          lastMessage: "", lastTime: "", unread: 0,
+        },
+      };
+    });
+    setMessagesByChat((prev) => ({ ...prev, [id]: prev[id] || [] }));
+    setActiveId(id);
+    setMobileView("chat");
+    setShowContactsScreen(false);
+  }
+
+  async function inviteContact(contact) {
+    try {
+      await Share.share({
+        title: "دعوت به Shade",
+        text: `سلام ${contact.name}! بیا با اپ Shade باهم چت کنیم.`,
+        dialogTitle: "دعوت به Shade",
+      });
+    } catch {}
+  }
+
+  function createGroupOrChannel() {
+    if (!newChatName.trim()) return;
+    const type = creatingType;
+    const name = newChatName.trim();
+    const id = `${type}-${Date.now()}`;
+    setChats((prev) => ({
+      ...prev,
+      [id]: {
+        id, name, initials: initialsOf(name), color: colorFromString(name), online: false,
+        isGroup: type === "group", isChannel: type === "channel", blocked: false,
+        discoverable: type === "channel" ? newChatDiscoverable : false,
+        membersCount: selectedMembers.length + 1, lastMessage: "", lastTime: "", unread: 0,
+      },
+    }));
+    setMessagesByChat((prev) => ({ ...prev, [id]: [] }));
+    setActiveId(id);
+    setMobileView("chat");
+    setCreatingType(null);
+  }
+
+  function toE164(raw) {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("+")) return trimmed.replace(/[^\d+]/g, "");
+    const digits = trimmed.replace(/\D/g, "");
+    if (digits.startsWith("0")) return "+98" + digits.slice(1);
+    if (digits.startsWith("98")) return "+" + digits;
+    return "+98" + digits;
+  }
+
+  async function handleSendCode() {
     const digits = phone.replace(/\D/g, "");
     if (digits.length < 10) {
       setPhoneError("شماره موبایل معتبر نیست");
       return;
     }
     setPhoneError("");
-    const code = String(Math.floor(10000 + Math.random() * 90000));
-    setSentCode(code);
-    setOtp(["", "", "", "", ""]);
-    setOtpError("");
-    setResendTimer(45);
-    setAuthStep("otp");
+    setSendingCode(true);
+    try {
+      await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: toE164(phone) });
+      // "phoneCodeSent" listener (registered on mount) will move us to the otp step
+    } catch (err) {
+      setPhoneError("ارسال کد ناموفق بود. اتصال اینترنت یا شماره را بررسی کن.");
+    }
+    setSendingCode(false);
   }
 
   function handleOtpChange(index, value) {
@@ -168,263 +465,62 @@ export default function ShadeApp() {
   }
 
   function handleOtpKeyDown(index, e) {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
+    if (e.key === "Backspace" && !otp[index] && index > 0) otpRefs.current[index - 1]?.focus();
   }
 
-  function handleVerify() {
+  async function handleVerify() {
     const entered = otp.join("");
-    if (entered.length < 5) {
-      setOtpError("کد ۵ رقمی را کامل وارد کنید");
-      return;
-    }
-    if (entered !== sentCode) {
+    if (entered.length < 5) { setOtpError("کد ۵ رقمی را کامل وارد کنید"); return; }
+    if (!verificationIdRef.current) { setOtpError("خطا در تایید، دوباره کد را ارسال کن"); return; }
+    setVerifying(true);
+    try {
+      await FirebaseAuthentication.confirmVerificationCode({
+        verificationId: verificationIdRef.current,
+        verificationCode: entered,
+      });
+      Preferences.set({ key: AUTH_STORAGE_KEY, value: phone });
+      setDraftProfile({ username: "", bio: "", avatar: "" });
+      setAuthStep("profile");
+    } catch (err) {
       setOtpError("کد وارد شده اشتباه است");
-      return;
     }
-    Preferences.set({ key: AUTH_STORAGE_KEY, value: phone });
-    setAuthStep("app");
+    setVerifying(false);
   }
+
 
   function handleLogout() {
     if (!window.confirm("از حساب خارج شوید؟")) return;
+    FirebaseAuthentication.signOut();
     Preferences.remove({ key: AUTH_STORAGE_KEY });
+    Preferences.remove({ key: PROFILE_STORAGE_KEY });
     setPhone("");
+    setProfile({ username: "", bio: "", avatar: "" });
+    setChats({});
+    setMessagesByChat({});
+    setActiveId(null);
+    setShowAccountSheet(false);
     setAuthStep("phone");
   }
 
-  if (authStep === "checking") {
-    return (
-      <div
-        className="w-full flex items-center justify-center bg-[#0B0D12]"
-        style={{ height: "100dvh" }}
-      >
-        <img src="/favicon.png" alt="Shade" className="w-16 h-16 rounded-2xl object-cover" />
-      </div>
-    );
+  async function handleAvatarPick(e, target) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const dataUrl = await resizeImageFile(file, 320);
+      if (target === "setup") setDraftProfile((p) => ({ ...p, avatar: dataUrl }));
+      else setEditDraft((p) => ({ ...p, avatar: dataUrl }));
+    } catch {}
+    e.target.value = "";
   }
 
-  if (authStep === "phone" || authStep === "otp") {
-    return (
-      <div
-        dir="rtl"
-        className="w-full flex flex-col items-center justify-center bg-[#0B0D12] text-[#E7E8EC] px-6"
-        style={{
-          height: "100dvh",
-          fontFamily: "system-ui, sans-serif",
-          paddingTop: "env(safe-area-inset-top)",
-          paddingBottom: "env(safe-area-inset-bottom)",
-        }}
-      >
-        <div className="w-full max-w-[340px] flex flex-col items-center">
-          <img src="/favicon.png" alt="Shade" className="w-16 h-16 rounded-2xl object-cover mb-5" />
-
-          {authStep === "phone" ? (
-            <>
-              <h1 className="text-xl font-medium mb-1.5">شماره موبایل خود را وارد کنید</h1>
-              <p className="text-sm text-[#8B8D98] text-center mb-6">
-                کد تایید برای این شماره پیامک می‌شود
-              </p>
-              <div className="w-full flex items-center gap-2 bg-[#151821] rounded-xl px-4 py-3 mb-2">
-                <Phone size={17} className="text-[#8B8D98] shrink-0" />
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  dir="ltr"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendCode()}
-                  placeholder="09123456789"
-                  className="bg-transparent outline-none text-sm w-full placeholder-[#5F6270] text-[#E7E8EC] text-left"
-                />
-              </div>
-              {phoneError && <p className="text-xs text-[#E2807E] w-full text-right mb-2">{phoneError}</p>}
-              <button
-                onClick={handleSendCode}
-                className="w-full mt-4 bg-[#7C6FE0] hover:bg-[#6C5FD0] transition-colors text-white text-sm font-medium rounded-xl py-3"
-              >
-                ارسال کد تایید
-              </button>
-            </>
-          ) : (
-            <>
-              <h1 className="text-xl font-medium mb-1.5">کد تایید را وارد کنید</h1>
-              <p className="text-sm text-[#8B8D98] text-center mb-1">
-                کد ۵ رقمی به شماره
-              </p>
-              <p className="text-sm text-[#E7E8EC] mb-5" dir="ltr">{phone}</p>
-
-              <div className="w-full bg-[#151821] border border-[#2A2E3A] rounded-xl px-4 py-3 mb-5 flex items-center gap-2">
-                <ShieldCheck size={16} className="text-[#5DCAA5] shrink-0" />
-                <span className="text-xs text-[#8B8D98]">
-                  حالت شبیه‌سازی — کد شما: <span className="text-[#E7E8EC] font-medium" dir="ltr">{sentCode}</span>
-                </span>
-              </div>
-
-              <div dir="ltr" className="flex items-center justify-center gap-2 mb-2">
-                {otp.map((d, i) => (
-                  <input
-                    key={i}
-                    ref={(el) => (otpRefs.current[i] = el)}
-                    value={d}
-                    onChange={(e) => handleOtpChange(i, e.target.value)}
-                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    inputMode="numeric"
-                    maxLength={1}
-                    className="w-11 h-12 text-center text-lg bg-[#151821] rounded-lg outline-none text-[#E7E8EC] border border-[#2A2E3A] focus:border-[#7C6FE0]"
-                  />
-                ))}
-              </div>
-              {otpError && <p className="text-xs text-[#E2807E] w-full text-center mb-2">{otpError}</p>}
-
-              <button
-                onClick={handleVerify}
-                className="w-full mt-4 bg-[#7C6FE0] hover:bg-[#6C5FD0] transition-colors text-white text-sm font-medium rounded-xl py-3"
-              >
-                تایید و ورود
-              </button>
-
-              <div className="flex items-center justify-between w-full mt-4">
-                <button onClick={() => setAuthStep("phone")} className="text-xs text-[#8B8D98] hover:text-[#E7E8EC]">
-                  ویرایش شماره
-                </button>
-                <button
-                  onClick={() => resendTimer === 0 && handleSendCode()}
-                  className={`text-xs ${resendTimer === 0 ? "text-[#7C6FE0]" : "text-[#5F6270]"}`}
-                >
-                  {resendTimer === 0 ? "ارسال مجدد کد" : `ارسال مجدد (${resendTimer})`}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      dir="rtl"
-      className="w-full flex bg-[#0B0D12] text-[#E7E8EC] overflow-hidden"
-      style={{
-        height: "100dvh",
-        fontFamily: "system-ui, sans-serif",
-        paddingTop: "env(safe-area-inset-top)",
-        paddingBottom: "env(safe-area-inset-bottom)",
-      }}
-    >
-      {/* Sidebar */}
-      <div className={`w-full md:w-[320px] shrink-0 border-l border-[#1E212B] flex-col ${mobileView === "list" ? "flex" : "hidden md:flex"}`}>
-        <div className="px-4 py-4 flex items-center justify-between border-b border-[#1E212B]">
-          <div className="flex items-center gap-2">
-            <img src="/favicon.png" alt="Shade" className="w-8 h-8 rounded-full object-cover" />
-            <span className="text-lg font-medium tracking-tight">Shade</span>
-          </div>
-          <button onClick={handleLogout} aria-label="خروج از حساب">
-            <MoreVertical size={18} className="text-[#8B8D98]" />
-          </button>
-        </div>
-        <div className="px-3 py-3">
-          <div className="flex items-center gap-2 bg-[#151821] rounded-lg px-3 py-2">
-            <Search size={16} className="text-[#8B8D98]" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="جستجو در گفتگوها"
-              className="bg-transparent outline-none text-sm w-full placeholder-[#5F6270] text-[#E7E8EC]"
-            />
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {filtered.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => openChat(c.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-right transition-colors ${
-                activeId === c.id ? "bg-[#171A24]" : "hover:bg-[#12151C]"
-              }`}
-            >
-              <div className="relative">
-                <Avatar name={c.name} initials={c.initials} color={c.color} />
-                {c.online && (
-                  <span className="absolute bottom-0 left-0 w-2.5 h-2.5 rounded-full bg-[#5DCAA5] border-2 border-[#0B0D12]" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium truncate">{c.name}</span>
-                  <span className="text-xs text-[#5F6270] shrink-0">{times[c.id]}</span>
-                </div>
-                <div className="flex items-center justify-between mt-0.5">
-                  <span className="text-xs text-[#8B8D98] truncate">{previews[c.id]}</span>
-                  {unread[c.id] > 0 && (
-                    <span className="bg-[#7C6FE0] text-white text-[10px] rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shrink-0">
-                      {unread[c.id]}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Chat panel */}
-      <div className={`flex-1 flex-col min-w-0 ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
-        {active && (
-          <>
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-[#1E212B]">
-              <button className="md:hidden text-[#8B8D98]" onClick={() => setMobileView("list")}>
-                <ArrowRight size={20} />
-              </button>
-              <Avatar name={active.name} initials={active.initials} color={active.color} size={36} />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{active.name}</div>
-                <div className="text-xs text-[#5F6270]">{active.online ? "آنلاین" : "آخرین بازدید اخیرا"}</div>
-              </div>
-            </div>
-
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2">
-              {messages.map((m) => (
-                <div key={m.id} className={`flex ${m.from === "me" ? "justify-start" : "justify-end"}`}>
-                  <div
-                    className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
-                      m.from === "me" ? "bg-[#4A3FA0] text-white rounded-bl-md" : "bg-[#1B1E28] text-[#E7E8EC] rounded-br-md"
-                    }`}
-                  >
-                    <div>{m.text}</div>
-                    <div className={`flex items-center gap-1 mt-1 justify-end ${m.from === "me" ? "text-[#C9C4EE]" : "text-[#5F6270]"}`}>
-                      <span className="text-[10px]">{m.time}</span>
-                      {m.from === "me" && (m.status === "read" ? <CheckCheck size={13} /> : <Check size={13} />)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="px-3 py-3 border-t border-[#1E212B] flex items-center gap-2">
-              <Paperclip size={19} className="text-[#8B8D98] shrink-0" />
-              <div className="flex-1 bg-[#151821] rounded-full px-4 py-2 flex items-center gap-2">
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                  placeholder="پیام بنویس..."
-                  className="bg-transparent outline-none text-sm w-full placeholder-[#5F6270] text-[#E7E8EC]"
-                />
-                <Smile size={18} className="text-[#8B8D98] shrink-0" />
-              </div>
-              <button
-                onClick={sendMessage}
-                className="w-9 h-9 rounded-full bg-[#7C6FE0] flex items-center justify-center shrink-0 hover:bg-[#6C5FD0] transition-colors"
-              >
-                <Send size={16} className="text-white" style={{ transform: "scaleX(-1)" }} />
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-   }
+  async function handleWallpaperPick(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file || !activeId) return;
+    try {
+      const dataUrl = await resizeImageFile(file, 700, 0.75);
+      persistWallpapers({ ...wallpapers, [activeId]: dataUrl });
+    } catch {}
+    e.target.value = "";
+    setShowChatMenu(false);
+                                 }
+      
