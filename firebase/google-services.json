@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "723724693264",
+    "project_id": "shade-55901",
+    "storage_bucket": "shade-55901.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:723724693264:android:2d14a7e557094f09607f95",
+        "android_client_info": {
+          "package_name": "com.shade.chat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCvS3I6alVNazC5YxOcq77Hjz4MGst-ZaM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
