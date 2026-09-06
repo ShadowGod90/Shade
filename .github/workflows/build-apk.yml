@@ -12,6 +12,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Use fixed debug keystore
+        run: |
+          mkdir -p ~/.android
+          cp android-signing/debug.keystore ~/.android/debug.keystore
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -34,6 +39,11 @@ jobs:
 
       - name: Add Android platform
         run: npx cap add android
+
+      - name: Add Firebase config
+        run: |
+          cp firebase/google-services.json android/app/google-services.json
+          sed -i "s#classpath 'com.android.tools.build:gradle:[^']*'#&\n        classpath 'com.google.gms:google-services:4.4.2'#" android/build.gradle
 
       - name: Generate app icons and splash screen
         run: npx @capacitor/assets generate --android
