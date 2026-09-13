@@ -678,3 +678,334 @@ export default function ShadeApp() {
       });
     });
     return { totalBytes, perType };
+  }
+
+  // ================= AUTH SCREENS =================
+
+  if (authStep === "checking") {
+    return (
+      <div className="w-full flex items-center justify-center bg-[#0B0D12]" style={{ height: "100dvh" }}>
+        <img src="/favicon.png" alt="Shade" className="w-16 h-16 rounded-2xl object-cover" />
+      </div>
+    );
+  }
+
+  if (authStep === "phone" || authStep === "otp") {
+    return (
+      <div
+        dir="rtl"
+        className="w-full flex flex-col items-center justify-center bg-[#0B0D12] text-[#E7E8EC] px-6"
+        style={{ height: "100dvh", fontFamily: "system-ui, sans-serif", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="w-full max-w-[340px] flex flex-col items-center">
+          <img src="/favicon.png" alt="Shade" className="w-16 h-16 rounded-2xl object-cover mb-5" />
+          {authStep === "phone" ? (
+            <>
+              <h1 className="text-xl font-medium mb-1.5">شماره موبایل خود را وارد کنید</h1>
+              <p className="text-sm text-[#8B8D98] text-center mb-6">کد تایید برای این شماره پیامک می‌شود</p>
+              <div className="w-full flex items-center gap-2 bg-[#151821] rounded-xl px-4 py-3 mb-2">
+                <Phone size={17} className="text-[#8B8D98] shrink-0" />
+                <input
+                  type="tel" inputMode="numeric" dir="ltr" value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendCode()}
+                  placeholder="09123456789"
+                  className="bg-transparent outline-none text-sm w-full placeholder-[#5F6270] text-[#E7E8EC] text-left"
+                />
+              </div>
+              {phoneError && <p className="text-xs text-[#E2807E] w-full text-right mb-2">{phoneError}</p>}
+              <button onClick={handleSendCode} disabled={sendingCode} className="w-full mt-4 bg-[#7C6FE0] hover:bg-[#6C5FD0] transition-colors text-white text-sm font-medium rounded-xl py-3 disabled:opacity-60">
+                {sendingCode ? "در حال ارسال..." : "ارسال کد تایید"}
+              </button>
+            </>
+          ) : (
+            <>
+              <h1 className="text-xl font-medium mb-1.5">کد تایید را وارد کنید</h1>
+              <p className="text-sm text-[#8B8D98] text-center mb-1">کد ۵ رقمی پیامک‌شده به شماره</p>
+              <p className="text-sm text-[#E7E8EC] mb-5" dir="ltr">{phone}</p>
+              <div dir="ltr" className="flex items-center justify-center gap-2 mb-2">
+                {otp.map((d, i) => (
+                  <input
+                    key={i} ref={(el) => (otpRefs.current[i] = el)} value={d}
+                    onChange={(e) => handleOtpChange(i, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                    inputMode="numeric" maxLength={1}
+                    className="w-11 h-12 text-center text-lg bg-[#151821] rounded-lg outline-none text-[#E7E8EC] border border-[#2A2E3A] focus:border-[#7C6FE0]"
+                  />
+                ))}
+              </div>
+              {otpError && <p className="text-xs text-[#E2807E] w-full text-center mb-2">{otpError}</p>}
+              <button onClick={handleVerify} disabled={verifying} className="w-full mt-4 bg-[#7C6FE0] hover:bg-[#6C5FD0] transition-colors text-white text-sm font-medium rounded-xl py-3 disabled:opacity-60">
+                {verifying ? "در حال تایید..." : "تایید و ورود"}
+              </button>
+              <div className="flex items-center justify-between w-full mt-4">
+                <button onClick={() => setAuthStep("phone")} className="text-xs text-[#8B8D98] hover:text-[#E7E8EC]">ویرایش شماره</button>
+                <button onClick={() => resendTimer === 0 && handleSendCode()} className={`text-xs ${resendTimer === 0 ? "text-[#7C6FE0]" : "text-[#5F6270]"}`}>
+                  {resendTimer === 0 ? "ارسال مجدد کد" : `ارسال مجدد (${resendTimer})`}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+      </div>
+    );
+  }
+
+  if (authStep === "profile") {
+    return (
+      <div
+        dir="rtl"
+        className="w-full flex flex-col items-center justify-center bg-[#0B0D12] text-[#E7E8EC] px-6"
+        style={{ height: "100dvh", fontFamily: "system-ui, sans-serif", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="w-full max-w-[340px] flex flex-col items-center">
+          <h1 className="text-xl font-medium mb-1.5">پروفایلت رو بساز</h1>
+          <p className="text-sm text-[#8B8D98] text-center mb-6">یه نام کاربری و عکس انتخاب کن</p>
+
+          <button onClick={() => setupAvatarInputRef.current && setupAvatarInputRef.current.click()} className="relative mb-5">
+            {draftProfile.avatar ? (
+              <img src={draftProfile.avatar} alt="" className="w-24 h-24 rounded-full object-cover" />
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-[#151821] border border-[#2A2E3A] flex items-center justify-center">
+                <Camera size={26} className="text-[#5F6270]" />
+              </div>
+            )}
+            <span className="absolute bottom-0 left-0 bg-[#7C6FE0] rounded-full p-1.5">
+              <Camera size={14} className="text-white" />
+            </span>
+          </button>
+          <input ref={setupAvatarInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleAvatarPick(e, "setup")} />
+
+          <div className="w-full bg-[#151821] rounded-xl px-4 py-3 mb-2">
+            <input
+              value={draftProfile.username}
+              onChange={(e) => setDraftProfile((p) => ({ ...p, username: e.target.value }))}
+              placeholder="نام کاربری"
+              className="bg-transparent outline-none text-sm w-full placeholder-[#5F6270] text-[#E7E8EC]"
+            />
+          </div>
+          {profileError && <p className="text-xs text-[#E2807E] w-full text-right mb-2">{profileError}</p>}
+          <div className="w-full bg-[#151821] rounded-xl px-4 py-3 mb-4">
+            <textarea
+              value={draftProfile.bio}
+              onChange={(e) => setDraftProfile((p) => ({ ...p, bio: e.target.value }))}
+              placeholder="بیوگرافی (اختیاری)"
+              rows={2}
+              className="bg-transparent outline-none text-sm w-full placeholder-[#5F6270] text-[#E7E8EC] resize-none"
+            />
+          </div>
+          <button onClick={handleFinishProfileSetup} className="w-full bg-[#7C6FE0] hover:bg-[#6C5FD0] transition-colors text-white text-sm font-medium rounded-xl py-3">
+            ادامه
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ================= MAIN APP =================
+
+  return (
+    <div
+      dir="rtl"
+      className="w-full flex bg-[var(--bg)] text-[var(--text)] overflow-hidden relative"
+      style={{ ...themeVars, height: "100dvh", fontFamily: "system-ui, sans-serif", paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {/* Sidebar */}
+      <div className={`w-full md:w-[320px] shrink-0 border-l border-[var(--border)] flex-col relative ${mobileView === "list" ? "flex" : "hidden md:flex"}`}>
+        <div className="px-4 py-4 flex items-center justify-between border-b border-[var(--border)]">
+          <div className="flex items-center gap-2">
+            <img src="/favicon.png" alt="Shade" className="w-8 h-8 rounded-full object-cover" />
+            <span className="text-lg font-medium tracking-tight">Shade</span>
+          </div>
+          <button onClick={() => setShowAccountSheet(true)} aria-label="حساب کاربری">
+            <MoreVertical size={18} className="text-[var(--textDim)]" />
+          </button>
+        </div>
+        <div className="px-3 py-3">
+          <div className="flex items-center gap-2 bg-[var(--panel2)] rounded-lg px-3 py-2">
+            <Search size={16} className="text-[var(--textDim)]" />
+            <input
+              value={query} onChange={(e) => setQuery(e.target.value)}
+              placeholder="جستجو در گفتگوها"
+              className="bg-transparent outline-none text-sm w-full placeholder-[var(--textFaint)] text-[var(--text)]"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {chatList.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full px-8 text-center">
+              <p className="text-sm text-[var(--textFaint)]">هنوز گفتگویی نداری</p>
+              <p className="text-xs text-[var(--textFaint)] mt-1">با دکمه‌ی + یه چت، گروه یا کانال جدید بساز</p>
+            </div>
+          )}
+          {chatList.map((c) => (
+            <button
+              key={c.id} onClick={() => openChat(c.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-right transition-colors ${activeId === c.id ? "bg-[var(--panel)]" : "hover:bg-[var(--panel2)]"}`}
+            >
+              <div className="relative">
+                <Avatar name={c.name} initials={c.initials} color={c.color} />
+                {c.online && !c.isGroup && !c.isChannel && (
+                  <span className="absolute bottom-0 left-0 w-2.5 h-2.5 rounded-full bg-[#5DCAA5] border-2 border-[var(--bg)]" />
+                )}
+                {(c.isGroup || c.isChannel) && (
+                  <span className="absolute bottom-0 left-0 w-4 h-4 rounded-full bg-[var(--panel)] border border-[var(--bg)] flex items-center justify-center">
+                    {c.isGroup ? <Users size={9} className="text-[var(--textDim)]" /> : <Radio size={9} className="text-[var(--textDim)]" />}
+                  </span>
+                )}
+                {c.blocked && (
+                  <span className="absolute -top-1 -left-1 w-4 h-4 rounded-full bg-[#E2534E] flex items-center justify-center">
+                    <Ban size={9} className="text-white" />
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium truncate">{c.name}</span>
+                  <span className="text-xs text-[var(--textFaint)] shrink-0">{c.lastTime}</span>
+                </div>
+                <div className="flex items-center justify-between mt-0.5">
+                  <span className="text-xs text-[var(--textDim)] truncate">{c.lastMessage || "چت جدید"}</span>
+                  {c.unread > 0 && (
+                    <span className="bg-[#7C6FE0] text-white text-[10px] rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shrink-0">{c.unread}</span>
+                  )}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* FAB */}
+        <div className="absolute bottom-6 left-6">
+          {showNewMenu && (
+            <div className="absolute bottom-16 left-0 bg-[var(--panel)] border border-[var(--border2)] rounded-xl overflow-hidden w-48 shadow-lg">
+              <button onClick={() => { setShowNewMenu(false); setShowContactsScreen(true); }} className="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-[var(--panel2)]">
+                <MessageCircle size={16} /> چت جدید
+              </button>
+              <button onClick={() => { setShowNewMenu(false); setCreatingType("group"); setNewChatName(""); setSelectedMembers([]); }} className="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-[var(--panel2)] border-t border-[var(--border)]">
+                <Users size={16} /> گروه جدید
+              </button>
+              <button onClick={() => { setShowNewMenu(false); setCreatingType("channel"); setNewChatName(""); setSelectedMembers([]); setNewChatDiscoverable(true); }} className="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-[var(--panel2)] border-t border-[var(--border)]">
+                <Radio size={16} /> کانال جدید
+              </button>
+            </div>
+          )}
+          <button onClick={() => setShowNewMenu((v) => !v)} className="w-14 h-14 rounded-full bg-gradient-to-br from-[#7C6FE0] to-[#4FA3A0] flex items-center justify-center shadow-lg">
+            <Plus size={24} className="text-white" />
+          </button>
+        </div>
+      </div>
+
+      {/* Chat panel */}
+      <div className={`flex-1 flex-col min-w-0 ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
+        {active && (
+          <>
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] relative">
+              <button className="md:hidden text-[var(--textDim)]" onClick={() => setMobileView("list")}>
+                <ArrowRight size={20} />
+              </button>
+              <Avatar name={active.name} initials={active.initials} color={active.color} size={36} />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{active.name}</div>
+                <div className="text-xs text-[var(--textFaint)]">
+                  {active.blocked ? "مسدود شده" : active.isGroup || active.isChannel ? `${active.membersCount || 1} عضو` : active.online ? "آنلاین" : "آخرین بازدید اخیرا"}
+                </div>
+              </div>
+              {!active.isChannel && (
+                <>
+                  <button onClick={() => startCall(active, "voice")} className="text-[var(--textDim)] hover:text-[var(--text)]"><Phone size={19} /></button>
+                  <button onClick={() => startCall(active, "video")} className="text-[var(--textDim)] hover:text-[var(--text)]"><Video size={19} /></button>
+                </>
+              )}
+              <button onClick={() => setShowChatMenu((v) => !v)} className="text-[var(--textDim)]"><MoreVertical size={19} /></button>
+
+              {showChatMenu && (
+                <div className="absolute left-4 top-14 z-40 bg-[var(--panel)] border border-[var(--border2)] rounded-xl overflow-hidden w-52 shadow-lg">
+                  <button onClick={handleClearHistory} className="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-[var(--panel2)]">
+                    <Trash2 size={16} /> پاک کردن تاریخچه
+                  </button>
+                  <button onClick={handleReportChat} className="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-[var(--panel2)] border-t border-[var(--border)]">
+                    <Flag size={16} /> گزارش گفتگو
+                  </button>
+                  {active.isGroup || active.isChannel ? (
+                    <button onClick={handleLeaveChat} className="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-[var(--panel2)] border-t border-[var(--border)] text-[#E2807E]">
+                      <Ban size={16} /> ترک {active.isGroup ? "گروه" : "کانال"}
+                    </button>
+                  ) : (
+                    <button onClick={handleToggleBlock} className="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-[var(--panel2)] border-t border-[var(--border)] text-[#E2807E]">
+                      <Ban size={16} /> {active.blocked ? "رفع مسدودیت" : "مسدود کردن"}
+                    </button>
+                  )}
+                  <button onClick={() => wallpaperInputRef.current && wallpaperInputRef.current.click()} className="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-[var(--panel2)] border-t border-[var(--border)]">
+                    <Camera size={16} /> تغییر پس‌زمینه
+                  </button>
+                </div>
+              )}
+              <input ref={wallpaperInputRef} type="file" accept="image/*" className="hidden" onChange={handleWallpaperPick} />
+            </div>
+
+            <div
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 bg-cover bg-center"
+              style={activeWallpaper ? { backgroundImage: `url(${activeWallpaper})` } : {}}
+            >
+              {active.blocked && (
+                <div className="text-center text-xs text-[#E2807E] bg-[var(--panel)] border border-[var(--border2)] rounded-lg py-2 px-3 mx-auto">
+                  این مخاطب مسدود شده — پیام جدید ارسال یا دریافت نمی‌شود
+                </div>
+              )}
+              {messages.map((m) => (
+                <div key={m.id} className={`flex ${m.from === "me" ? "justify-start" : "justify-end"}`}>
+                  <div
+                    className={`relative max-w-[75%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.from === "me" ? "bg-gradient-to-br from-[#4A3FA0] to-[#3D6E86] text-white rounded-bl-md" : "bg-[var(--bubbleThem)] text-[var(--text)] rounded-br-md"}`}
+                    onTouchStart={(e) => handleMsgTouchStart(e, m)}
+                    onTouchMove={handleMsgTouchMove}
+                    onTouchEnd={(e) => handleMsgTouchEnd(e, m)}
+                  >
+                    {m.pinned && <Pin size={11} className="absolute -top-1.5 -right-1.5 text-[#7C6FE0] bg-[var(--bg)] rounded-full p-0.5" />}
+                    {m.forwarded && <div className="text-[10px] opacity-60 mb-1">بازارسال‌شده</div>}
+                    {m.replyTo && (
+                      <div className="border-r-2 border-white/40 pr-2 mb-1 text-xs opacity-70 truncate">{m.replyTo.text}</div>
+                    )}
+                    {m.type === "image" && <img src={m.mediaUrl} alt="" className="rounded-lg max-w-full mb-1 max-h-64 object-cover" />}
+                    {m.type === "video" && <video src={m.mediaUrl} controls className="rounded-lg max-w-full mb-1 max-h-64" />}
+                    {m.type === "file" && (
+                      <div className="flex items-center gap-2 bg-black/20 rounded-lg px-2 py-2 mb-1">
+                        <FileIcon size={18} />
+                        <span className="text-xs truncate">{m.fileName}</span>
+                      </div>
+                    )}
+                    {m.type === "location" && (
+                      <a href={`https://www.google.com/maps?q=${m.lat},${m.lng}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-black/20 rounded-lg px-2 py-2 mb-1">
+                        <MapPin size={18} />
+                        <span className="text-xs">مشاهده‌ی موقعیت مکانی</span>
+                      </a>
+                    )}
+                    {m.type === "text" && <div>{m.text}</div>}
+                    <div className={`flex items-center gap-1 mt-1 justify-end ${m.from === "me" ? "text-[#C9C4EE]" : "text-[var(--textFaint)]"}`}>
+                      <span className="text-[10px]">{m.time}</span>
+                      {m.from === "me" && (m.status === "read" ? <CheckCheck size={13} /> : <Check size={13} />)}
+                    </div>
+                    {m.reaction && (
+                      <span className="absolute -bottom-2 -left-1 bg-[var(--panel)] border border-[var(--border2)] rounded-full text-xs px-1 leading-tight">{m.reaction}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {replyingTo && (
+              <div className="px-4 pt-2 pb-1 flex items-center gap-2 bg-[var(--panel)] border-t border-[var(--border)]">
+                <div className="flex-1 border-r-2 border-[#7C6FE0] pr-2 py-1 text-xs text-[var(--textDim)] truncate">
+                  پاسخ به: {buildReplySnippet()?.text}
+                </div>
+                <button onClick={() => setReplyingTo(null)}><X size={14} className="text-[var(--textDim)]" /></button>
+              </div>
+            )}
+
+            <div className="px-3 py-3 border-t border-[var(--border)] flex items-center gap-2 relative">
+              {showAttachSheet && (
+                <div className="absolute bottom-16 right-3 bg-[var(--panel)] border border-[var(--border2)] rounded-xl overflow-hidden w-52 shadow-lg">
+                  <button onClick={() => mediaInputRef.current && mediaInputRef.current.click()} className="w-full flex items-center gap-2 px-4 py-3 text-sm 
