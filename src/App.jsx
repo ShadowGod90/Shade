@@ -338,3 +338,343 @@ export default function ShadeApp() {
       }, 1400 + Math.random() * 900);
     }
                                  }
+
+  function buildReplySnippet() {
+    if (!replyingTo) return null;
+    const label =
+      replyingTo.type === "text" ? replyingTo.text :
+      replyingTo.type === "image" ? "📷 عکس" :
+      replyingTo.type === "video" ? "🎥 ویدیو" :
+      replyingTo.type === "file" ? `📎 ${replyingTo.fileName}` : "📍 موقعیت مکانی";
+    return { text: label, from: replyingTo.from };
+  }
+
+  function sendTextMessage() {
+    const text = input.trim();
+    if (!text || !activeId || active?.blocked) return;
+    pushMessage(activeId, { type: "text", text, replyTo: buildReplySnippet() });
+    setInput("");
+    setReplyingTo(null);
+  }
+
+  function handleAttachmentFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file || !activeId || active?.blocked) return;
+    const url = URL.createObjectURL(file);
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+    const type = isImage ? "image" : isVideo ? "video" : "file";
+    pushMessage(activeId, { type, mediaUrl: url, fileName: file.name, fileSize: file.size, replyTo: buildReplySnippet() });
+    e.target.value = "";
+    setShowAttachSheet(false);
+    setReplyingTo(null);
+  }
+
+  async function handleShareLocation() {
+    setShowAttachSheet(false);
+    if (!activeId || active?.blocked) return;
+    try {
+      const pos = await Geolocation.getCurrentPosition();
+      pushMessage(activeId, { type: "location", lat: pos.coords.latitude, lng: pos.coords.longitude, replyTo: buildReplySnippet() });
+      setReplyingTo(null);
+    } catch {
+      window.alert("دسترسی به موقعیت مکانی ممکن نشد.");
+    }
+  }
+
+  function startChatWithContact(contact) {
+    const id = `c-${contact.phone || contact.name}`;
+    setChats((prev) => {
+      if (prev[id]) return prev;
+      return {
+        ...prev,
+        [id]: {
+          id, name: contact.name, initials: initialsOf(contact.name), color: colorFromString(contact.name),
+          online: Math.random() > 0.5, isGroup: false, isChannel: false, blocked: false,
+          lastMessage: "", lastTime: "", unread: 0,
+        },
+      };
+    });
+    setMessagesByChat((prev) => ({ ...prev, [id]: prev[id] || [] }));
+    setActiveId(id);
+    setMobileView("chat");
+    setShowContactsScreen(false);
+  }
+
+  async function inviteContact(contact) {
+    try {
+      await Share.share({
+        title: "دعوت به Shade",
+        text: `سلام ${contact.name}! بیا با اپ Shade باهم چت کنیم.`,
+        dialogTitle: "دعوت به Shade",
+      });
+    } catch {}
+  }
+
+  function createGroupOrChannel() {
+    if (!newChatName.trim()) return;
+    const type = creatingType;
+    const name = newChatName.trim();
+    const id = `${type}-${Date.now()}`;
+    setChats((prev) => ({
+      ...prev,
+      [id]: {
+        id, name, initials: initialsOf(name), color: colorFromString(name), online: false,
+        isGroup: type === "group", isChannel: type === "channel", blocked: false,
+        discoverable: type === "channel" ? newChatDiscoverable : false,
+        membersCount: selectedMembers.length + 1, lastMessage: "", lastTime: "", unread: 0,
+      },
+    }));
+    setMessagesByChat((prev) => ({ ...prev, [id]: [] }));
+    setActiveId(id);
+    setMobileView("chat");
+    setCreatingType(null);
+  }
+
+  function toE164(raw) {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("+")) return trimmed.replace(/[^\d+]/g, "");
+    const digits = trimmed.replace(/\D/g, "");
+    if (digits.startsWith("0")) return "+98" + digits.slice(1);
+    if (digits.startsWith("98")) return "+" + digits;
+    return "+98" + digits;
+  }
+
+  async function handleSendCode() {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 10) {
+      setPhoneError("شماره موبایل معتبر نیست");
+      return;
+    }
+    setPhoneError("");
+    setSendingCode(true);
+    try {
+      await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: toE164(phone) });
+      // "phoneCodeSent" listener (registered on mount) will move us to the otp step
+    } catch (err) {
+      setPhoneError("ارسال کد ناموفق بود. اتصال اینترنت یا شماره را بررسی کن.");
+    }
+    setSendingCode(false);
+  }
+
+  function handleOtpChange(index, value) {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const next = [...otp];
+    next[index] = digit;
+    setOtp(next);
+    setOtpError("");
+    if (digit && index < 4) otpRefs.current[index + 1]?.focus();
+  }
+
+  function handleOtpKeyDown(index, e) {
+    if (e.key === "Backspace" && !otp[index] && index > 0) otpRefs.current[index - 1]?.focus();
+  }
+
+  async function handleVerify() {
+    const entered = otp.join("");
+    if (entered.length < 5) { setOtpError("کد ۵ رقمی را کامل وارد کنید"); return; }
+    if (!verificationIdRef.current) { setOtpError("خطا در تایید، دوباره کد را ارسال کن"); return; }
+    setVerifying(true);
+    try {
+      await FirebaseAuthentication.confirmVerificationCode({
+        verificationId: verificationIdRef.current,
+        verificationCode: entered,
+      });
+      Preferences.set({ key: AUTH_STORAGE_KEY, value: phone });
+      setDraftProfile({ username: "", bio: "", avatar: "" });
+      setAuthStep("profile");
+    } catch (err) {
+      setOtpError("کد وارد شده اشتباه است");
+    }
+    setVerifying(false);
+  }
+
+
+  function handleLogout() {
+    if (!window.confirm("از حساب خارج شوید؟")) return;
+    FirebaseAuthentication.signOut();
+    Preferences.remove({ key: AUTH_STORAGE_KEY });
+    Preferences.remove({ key: PROFILE_STORAGE_KEY });
+    setPhone("");
+    setProfile({ username: "", bio: "", avatar: "" });
+    setChats({});
+    setMessagesByChat({});
+    setActiveId(null);
+    setShowAccountSheet(false);
+    setAuthStep("phone");
+  }
+
+  async function handleAvatarPick(e, target) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const dataUrl = await resizeImageFile(file, 320);
+      if (target === "setup") setDraftProfile((p) => ({ ...p, avatar: dataUrl }));
+      else setEditDraft((p) => ({ ...p, avatar: dataUrl }));
+    } catch {}
+    e.target.value = "";
+  }
+
+  async function handleWallpaperPick(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file || !activeId) return;
+    try {
+      const dataUrl = await resizeImageFile(file, 700, 0.75);
+      persistWallpapers({ ...wallpapers, [activeId]: dataUrl });
+    } catch {}
+    e.target.value = "";
+    setShowChatMenu(false);
+  }
+
+  async function syncProfileToFirestore(uname, bio, avatar) {
+    try {
+      const current = await FirebaseAuthentication.getCurrentUser();
+      const uid = current && current.user && current.user.uid;
+      if (!uid) return;
+      const e164 = toE164(phone);
+      await setDoc(doc(db, "users", uid), {
+        phone: e164,
+        username: uname,
+        bio: bio || "",
+        avatar: avatar || "",
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      await setDoc(doc(db, "phoneIndex", e164), { uid }, { merge: true });
+    } catch (err) {
+      console.error("Firestore profile sync failed", err);
+    }
+  }
+
+  function handleFinishProfileSetup() {
+    const uname = draftProfile.username.trim();
+    if (!uname) { setProfileError("نام کاربری را وارد کنید"); return; }
+    const finalProfile = { username: uname, bio: draftProfile.bio.trim(), avatar: draftProfile.avatar };
+    Preferences.set({ key: PROFILE_STORAGE_KEY, value: JSON.stringify(finalProfile) });
+    setProfile(finalProfile);
+    syncProfileToFirestore(finalProfile.username, finalProfile.bio, finalProfile.avatar);
+    setAuthStep("app");
+  }
+
+  function openEditProfile() {
+    setEditDraft(profile);
+    setEditingProfile(true);
+    setShowAccountSheet(false);
+  }
+
+  function saveEditedProfile() {
+    const uname = editDraft.username.trim();
+    if (!uname) return;
+    const updated = { username: uname, bio: editDraft.bio.trim(), avatar: editDraft.avatar };
+    Preferences.set({ key: PROFILE_STORAGE_KEY, value: JSON.stringify(updated) });
+    setProfile(updated);
+    syncProfileToFirestore(updated.username, updated.bio, updated.avatar);
+    setEditingProfile(false);
+  }
+
+
+  function startCall(chat, type) {
+    setActiveCall({ chat, type });
+    setMicMuted(false);
+    setSpeakerOn(false);
+  }
+
+  // ---- chat menu actions ----
+  function handleClearHistory() {
+    if (!activeId) return;
+    if (!window.confirm("تاریخچه‌ی این گفتگو پاک شود؟")) return;
+    setMessagesByChat((prev) => ({ ...prev, [activeId]: [] }));
+    setChats((prev) => ({ ...prev, [activeId]: { ...prev[activeId], lastMessage: "", lastTime: "" } }));
+    setShowChatMenu(false);
+  }
+
+  function handleReportChat() {
+    window.alert("گزارش شما ثبت شد (این بخش نمایشی است).");
+    setShowChatMenu(false);
+  }
+
+  function handleToggleBlock() {
+    if (!activeId) return;
+    setChats((prev) => ({ ...prev, [activeId]: { ...prev[activeId], blocked: !prev[activeId].blocked } }));
+    setShowChatMenu(false);
+  }
+
+  function handleLeaveChat() {
+    if (!activeId) return;
+    if (!window.confirm("از این گفتگو خارج شوید؟")) return;
+    setChats((prev) => {
+      const next = { ...prev };
+      delete next[activeId];
+      return next;
+    });
+    setMessagesByChat((prev) => {
+      const next = { ...prev };
+      delete next[activeId];
+      return next;
+    });
+    setActiveId(null);
+    setMobileView("list");
+    setShowChatMenu(false);
+  }
+
+  // ---- message actions ----
+  function reactToMessage(msg, emoji) {
+    if (!activeId) return;
+    setMessagesByChat((prev) => ({
+      ...prev,
+      [activeId]: (prev[activeId] || []).map((m) => (m.id === msg.id ? { ...m, reaction: m.reaction === emoji ? null : emoji } : m)),
+    }));
+    setSelectedMessage(null);
+  }
+
+  function togglePinMessage(msg) {
+    if (!activeId) return;
+    setMessagesByChat((prev) => ({
+      ...prev,
+      [activeId]: (prev[activeId] || []).map((m) => (m.id === msg.id ? { ...m, pinned: !m.pinned } : m)),
+    }));
+    setSelectedMessage(null);
+  }
+
+  function forwardMessageTo(chatId) {
+    const m = showForwardScreen;
+    if (!m) return;
+    pushMessage(chatId, { type: m.type, text: m.text, mediaUrl: m.mediaUrl, fileName: m.fileName, fileSize: m.fileSize, lat: m.lat, lng: m.lng, forwarded: true });
+    setShowForwardScreen(null);
+  }
+
+  // ---- touch gestures on messages ----
+  function handleMsgTouchStart(e, m) {
+    touchState.current.x = e.touches[0].clientX;
+    touchState.current.moved = false;
+    touchState.current.timer = setTimeout(() => {
+      if (!touchState.current.moved) setSelectedMessage(m);
+    }, 450);
+  }
+  function handleMsgTouchMove(e) {
+    const dx = e.touches[0].clientX - touchState.current.x;
+    if (Math.abs(dx) > 12) {
+      touchState.current.moved = true;
+      clearTimeout(touchState.current.timer);
+    }
+  }
+  function handleMsgTouchEnd(e, m) {
+    clearTimeout(touchState.current.timer);
+    if (m.from === "them" && touchState.current.moved) {
+      const dx = e.changedTouches[0].clientX - touchState.current.x;
+      if (Math.abs(dx) > 60) setReplyingTo(m);
+    }
+  }
+
+  // ---- storage stats ----
+  function computeStorageStats() {
+    let totalBytes = 0;
+    const perType = { image: 0, video: 0, file: 0 };
+    Object.values(messagesByChat).forEach((msgs) => {
+      msgs.forEach((m) => {
+        if (m.fileSize) {
+          totalBytes += m.fileSize;
+          if (perType[m.type] !== undefined) perType[m.type] += m.fileSize;
+        }
+      });
+    });
+    return { totalBytes, perType };
